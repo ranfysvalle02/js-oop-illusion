@@ -1,50 +1,45 @@
-# prototype-based-programming
+# The OOP Illusion
 
-# The OOP Illusion: Why TypeScript Purists Need to Understand JavaScript Prototypes
-
-If you come from a classical Object-Oriented Programming (OOP) background like Java or C#, opening a modern TypeScript file feels like coming home. You see the `class` keyword. You see `private` modifiers, `extends`, and `implements`. You build beautifully structured, strictly typed architectures. 
-
-You feel safe. 
-
-But there is a matrix-level truth hiding just beneath the surface of your code: **TypeScript is just JavaScript.** And JavaScript does not have traditional classes. 
-
-Under the hood, your beautiful classical architecture is running on a highly dynamic, prototype-based engine. Here is why that matters, and why ignoring it will eventually bite you in production.
+**Why JavaScript's `class` keyword is a lie, TypeScript can't save you at runtime, and this is exactly why the web is so hackable.**
 
 ---
 
-## The Syntactic Sugar Coating
+## What This Project Is
 
-In 2015, JavaScript introduced the `class` keyword. It was a massive win for developer ergonomics, but it was purely **syntactic sugar**. 
+This repository is a concise exploration of a truth most JavaScript and TypeScript developers eventually stumble into: **JS does not have real classes.** The `class` keyword is syntactic sugar over a prototype-based object system, and TypeScript's type safety disappears the moment your code runs.
 
-When you write a `class` in JavaScript (or TypeScript), the engine isn't creating a strict blueprint. It is creating a traditional JavaScript constructor function and attaching methods to that function's underlying prototype object. 
+Understanding this isn't academic — it's the key to understanding why browser extensions can rewrite any webpage, why monkey-patching is trivially easy, and why the entire web platform is the most extensible (and most exploitable) runtime ever built.
 
-Objects in JS don't inherit from classes; **objects inherit from other objects**. If an object doesn't have a property you are looking for, it simply climbs up the invisible "prototype chain" until it finds an object that does.
+## What's Inside
 
-## The TypeScript Purist Dilemma
+| File | Description |
+|---|---|
+| [`blog.md`](blog.md) | Full blog post — the deep dive with code examples and real-world implications |
+| [`demo.js`](demo.js) | Runnable proof that ES6 classes and prototype functions are identical under the hood |
 
-TypeScript is an incredible tool, but it only exists at *compile time*. It is like a strict bouncer standing outside a nightclub. It checks IDs, enforces the dress code, and keeps the riff-raff out. But once your code gets inside the club (runtime), the bouncer disappears, and the wild rules of the JavaScript prototype engine take over.
+## Run the Demo
 
-Here is where classical OOP purists get tripped up:
+```bash
+node demo.js
+```
 
-### 1. The Illusion of Runtime Safety
-TypeScript cannot protect your objects at runtime. Because JavaScript is dynamic, any piece of code can inject, delete, or alter properties on an object or its prototype while the app is running. Your strictly typed `readonly` properties? At runtime, they are just standard, mutable JavaScript properties.
+You'll see proof that:
+- A `class` is just a `function`
+- Methods don't live on instances — they live on the prototype
+- ES6 class instances use the exact same prototype mechanism as old-school constructor functions
 
-### 2. Structural Typing (Duck Typing)
-In a nominal language like Java, a `Car` and a `Dog` are fundamentally different, even if they both have a `run()` method. You cannot pass a `Dog` to a function expecting a `Car`. 
+## Key Takeaways
 
-Because JavaScript is just a collection of dynamic objects, TypeScript uses **Structural Typing**. If it walks like a duck and quacks like a duck, TypeScript lets it in.
+1. **Classes are syntactic sugar.** `class` compiles to a constructor function + prototype object. There are no blueprints.
+2. **Objects inherit from objects.** The prototype chain is just a linked list of objects, not a class hierarchy.
+3. **TypeScript is a compile-time bouncer.** `private`, `readonly`, and type checks vanish at runtime. The JS engine never sees them.
+4. **Structural typing means shape over identity.** Any object with the right properties satisfies a type — no `instanceof` required.
+5. **This is why the web is hackable.** Every browser API, DOM node, and page object is a mutable JS object. Extensions and scripts can intercept, wrap, or replace anything.
 
-```typescript
-class Car {
-  run() { console.log("Vroom!"); }
-}
+## Read the Full Post
 
-function startEngine(vehicle: Car) {
-  vehicle.run();
-}
+Head to **[`blog.md`](blog.md)** for the complete write-up, including code examples, the TypeScript purist dilemma, and why this prototype-based design is the architectural reason the web is so extensible.
 
-// A TS Purist's nightmare: 
-// Passing a plain object literal into a class-typed function!
-const notACar = { run: () => console.log("Wait, I'm just an object!") };
+## License
 
-startEngine(notACar); // TypeScript says: "Looks good to me!" ✅
+[MIT](LICENSE)
