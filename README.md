@@ -1,21 +1,22 @@
 # The OOP Illusion
 
-**Why JavaScript's `class` keyword is a lie, TypeScript can't save you at runtime, and this is exactly why the web is so hackable.**
+**A few lines of JavaScript can keylog every page you visit. TypeScript's `private` and `readonly` won't stop it. This project explains why.**
 
 ---
 
-## What This Project Is
+## What This Is
 
-This repository is a concise exploration of a truth most JavaScript and TypeScript developers eventually stumble into: **JS does not have real classes.** The `class` keyword is syntactic sugar over a prototype-based object system, and TypeScript's type safety disappears the moment your code runs.
+A story about how 4 lines of JavaScript become a browser extension keylogger — and why the answer traces back to JavaScript's prototype-based runtime, where there are no real classes, no runtime encapsulation, and every object is mutable.
 
-Understanding this isn't academic — it's the key to understanding why browser extensions can rewrite any webpage, why monkey-patching is trivially easy, and why the entire web platform is the most extensible (and most exploitable) runtime ever built.
+TypeScript adds safety at compile time. But `private`, `readonly`, and type annotations are erased before a single line executes in the browser. What remains is a prototype chain, and prototype chains are writable.
 
-## What's Inside
+---
 
-| File | Description |
-|---|---|
-| [`blog.md`](blog.md) | Full blog post — the deep dive with code examples and real-world implications |
-| [`demo.js`](demo.js) | Runnable proof that ES6 classes and prototype functions are identical under the hood |
+## Read the Post
+
+**[`blog.md`](blog.md)** — the full story, from keylogger to prototype chain, with code at every step.
+
+---
 
 ## Run the Demo
 
@@ -23,22 +24,29 @@ Understanding this isn't academic — it's the key to understanding why browser 
 node demo.js
 ```
 
-You'll see proof that:
-- A `class` is just a `function`
-- Methods don't live on instances — they live on the prototype
-- ES6 class instances use the exact same prototype mechanism as old-school constructor functions
+Proves that ES6 classes and old-school constructor functions are identical under the hood:
+- `typeof UserClass === "function"` — a class is literally a function
+- `user.hasOwnProperty("sayHello")` returns `false` — methods don't live on instances
+- `Object.getPrototypeOf(user) === UserClass.prototype` — they live on the shared prototype
+
+---
 
 ## Key Takeaways
 
-1. **Classes are syntactic sugar.** `class` compiles to a constructor function + prototype object. There are no blueprints.
-2. **Objects inherit from objects.** The prototype chain is just a linked list of objects, not a class hierarchy.
-3. **TypeScript is a compile-time bouncer.** `private`, `readonly`, and type checks vanish at runtime. The JS engine never sees them.
-4. **Structural typing means shape over identity.** Any object with the right properties satisfies a type — no `instanceof` required.
-5. **This is why the web is hackable.** Every browser API, DOM node, and page object is a mutable JS object. Extensions and scripts can intercept, wrap, or replace anything.
+1. **A keylogger is 4 lines of JS.** `addEventListener`, `sendBeacon`, done. No hack required — just the language working as designed.
+2. **TypeScript compiles away.** `private`, `readonly`, and types are erased. The browser never sees them.
+3. **Classes aren't real.** `class` is syntactic sugar over constructor functions and prototype objects.
+4. **Prototypes are mutable.** Modifying `HTMLInputElement.prototype` affects every input on the page.
+5. **The browser's security model exists because the language has none.** Same-origin policy, CSP, and extension permissions are platform guardrails compensating for JavaScript's openness.
 
-## Read the Full Post
+---
 
-Head to **[`blog.md`](blog.md)** for the complete write-up, including code examples, the TypeScript purist dilemma, and why this prototype-based design is the architectural reason the web is so extensible.
+## What's Inside
+
+| File | Description |
+|---|---|
+| [`blog.md`](blog.md) | Full post — keylogger walkthrough, TypeScript erasure, prototype mutability |
+| [`demo.js`](demo.js) | Runnable proof that classes are functions and methods live on prototypes |
 
 ## License
 
